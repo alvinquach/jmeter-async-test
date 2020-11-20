@@ -1,0 +1,11 @@
+plugins {
+    id 'java-library'
+}
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile 'org.apache.jmeter:ApacheJMeter_java:5.3'
+}
