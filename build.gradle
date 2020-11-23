@@ -8,4 +8,6 @@ repositories {
 
 dependencies {
     compile 'org.apache.jmeter:ApacheJMeter_java:5.3'
+    compile 'org.apache.httpcomponents:httpclient:4.5.13'
+	compile 'commons-io:commons-io:2.6'
 }
