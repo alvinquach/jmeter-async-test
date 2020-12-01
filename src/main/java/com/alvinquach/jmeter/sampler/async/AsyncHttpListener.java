@@ -64,11 +64,49 @@ public class AsyncHttpListener extends NanoHTTPD {
 	
 	private final String identifierPath;
 	
-	public AsyncHttpListener(int port, String identifierPath) {
+	private static AsyncHttpListener instance;
+	
+	private AsyncHttpListener(int port, String identifierPath) {
 		super(port);
 		this.identifierPath = identifierPath;
 	}
+	
+	/**
+	 * Returns the AsyncHttpListener singleton instance.
+	 */
+	public static AsyncHttpListener instance() {
+		if (instance == null) {
+			throw new IllegalStateException("AsyncHttpListener instance has not been initialized yet");
+		}
+		return instance;
+	}
+	
+	/**
+	 * Instantiates the AsyncHttpListener singleton instance.
+	 */
+	public static AsyncHttpListener instantiate(int port, String identifierPath) {
+		synchronized (AsyncHttpListener.class) {
+			if (instance != null) {
+				throw new IllegalStateException("AsyncHttpListener instance is already initialized");
+			}
+			return instance = new AsyncHttpListener(port, identifierPath);
+		}
+	}
 
+	/**
+	 * Removes the AsyncHttpListener singleton instance and returns it.
+	 */
+	public static AsyncHttpListener removeInstance() {
+		synchronized (AsyncHttpListener.class) {
+			if (instance == null) {
+				throw new IllegalStateException("AsyncHttpListener instance has not been initialized yet");
+			}
+			AsyncHttpListener oldInstance = instance;
+			instance = null;
+			return oldInstance;
+		}
+	}
+	
 	@Override
 	public void start() throws IOException {
 		super.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);

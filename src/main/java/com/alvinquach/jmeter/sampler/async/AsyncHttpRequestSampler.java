@@ -13,12 +13,27 @@ import org.apache.jmeter.protocol.java.sampler.JavaSamplerContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.alvinquach.jmeter.sampler.http.AbstractCustomHttpSampler;
+import com.alvinquach.jmeter.sampler.AbstractCustomHttpSampler;
 import com.alvinquach.jmeter.sampler.util.JsonNodeUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+/**
+ * Generic sampler plug-in for sending HTTP requests to an asynchronous API
+ * endpoint.
+ * <p>
+ * This differs from a standard HTTP Request sampler in that it will parse an
+ * identifier value from the initial response and passes it in the returned
+ * SampleResult so that the AsyncHttpResponseSampler can use it to track the
+ * asynchronous response.This requires a unique identifier to be present in both
+ * the initial and asynchronous responses.
+ * <p>
+ * The test plan should be set up such that a AsyncHttpResponseSampler is placed
+ * directly after this sampler in the same thread group.
+ *
+ * @author Alvin Quach
+ */
 public class AsyncHttpRequestSampler extends AbstractCustomHttpSampler<AsyncRequestResult<String>> {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(AsyncHttpRequestSampler.class);

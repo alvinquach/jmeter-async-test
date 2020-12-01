@@ -1,4 +1,4 @@
-package com.alvinquach.jmeter.sampler.http;
+package com.alvinquach.jmeter.sampler;
 
 import java.net.MalformedURLException;
 import java.net.URI;

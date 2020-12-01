@@ -1,67 +1,39 @@
 package com.alvinquach.jmeter.sampler.async;
 
-import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.jmeter.config.Arguments;
 import org.apache.jmeter.protocol.java.sampler.AbstractJavaSamplerClient;
 import org.apache.jmeter.protocol.java.sampler.JavaSamplerContext;
 import org.apache.jmeter.samplers.SampleResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Generic sampler plug-in for listening to asynchronous HTTP responses from an
+ * API endpoint that was hit by the AsyncHttpRequestSampler. The response is
+ * tracked by an identifier value provided in the previous sample result by the
+ * AsyncHttpRequestSampler. This requires the unique identifier to be present in
+ * the asynchronous response.
+ * <p>
+ * The test plan should be set up such that a AsyncHttpRequestSampler is placed
+ * directly before this in the same thread group. In addition, the test plan
+ * should include an AsyncHttpListenerInitializer that runs once before this
+ * sampler runs the first time.
+ *
+ * @author Alvin Quach
+ */
 public class AsyncHttpResponseSampler extends AbstractJavaSamplerClient {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(AsyncHttpResponseSampler.class);
 
-	private static final String PORT_NUMBER_KEY = "listenerPortNumber";
-	
-	private static final String IDENTIFIER_PATH_KEY = "identifierPath";
-	
 	private static AsyncHttpListener httpListener;
-	
-	private int listenerPortNumber;
-	
-	private String identifierPath;
-	
-	@Override
-	public Arguments getDefaultParameters() {
-		Arguments defaultPArguments = new Arguments();
-		defaultPArguments.addArgument(PORT_NUMBER_KEY, "8080");
-		defaultPArguments.addArgument(IDENTIFIER_PATH_KEY, "");
-		return defaultPArguments;
-	}
 	
 	@Override
 	public void setupTest(JavaSamplerContext context) {
 		super.setupTest(context);
-		
-		String portNumber = context.getParameter(PORT_NUMBER_KEY);
-		listenerPortNumber = Integer.parseInt(portNumber);
-		
-		identifierPath = context.getParameter(IDENTIFIER_PATH_KEY);
-		if (StringUtils.isEmpty(identifierPath)) {
-			throw new IllegalArgumentException("Setup error: identifier path must not be blank");
-		}
-
-		/*
-		 * TODO Create a sampler for initializing the HTTP listener that runs before the
-		 * other samplers in its own thread group. This will allow the HTTP listener to
-		 * be ready before to listen for async responses before any requests even hit
-		 * the tested server, and should also eliminate the need to synchronize the
-		 * operation.
-		 */
-		synchronized (AsyncHttpResponseSampler.class) {
-			if (httpListener == null) {
-				httpListener = new AsyncHttpListener(listenerPortNumber, identifierPath);
-				try {
-					httpListener.start();
-					LOGGER.info("HTTP listen server started on port {}", listenerPortNumber);
-				} catch (IOException e) {
-					LOGGER.error("Could not start the HTTP listen server on port {}", listenerPortNumber);
-				}
-			}
+		if (httpListener == null) {
+			httpListener = AsyncHttpListener.instance();
 		}
 	}
 
@@ -93,7 +65,7 @@ public class AsyncHttpResponseSampler extends AbstractJavaSamplerClient {
 		 * a response.
 		 */
 		if (!previousResult.isSuccessful()) {
-			LOGGER.error("Prevous result reported a failure");
+			LOGGER.error("Previous result reported a failure");
 			return null;
 		}
 		
@@ -109,7 +81,7 @@ public class AsyncHttpResponseSampler extends AbstractJavaSamplerClient {
 			return null;
 		}
 		
-		LOGGER.info("Waiting for reponse with identifier '{}'", identifier);
+		LOGGER.info("Waiting for response with identifier '{}'", identifier);
 		
 		CompletableFuture<String> future = httpListener.getResponse(identifier);
 		String response;
