@@ -1,4 +1,4 @@
-package com.alvinquach.jmeter.http;
+package com.alvinquach.jmeter.sampler.http;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,6 +13,7 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.jmeter.config.Arguments;
 import org.apache.jmeter.protocol.java.sampler.AbstractJavaSamplerClient;
 import org.apache.jmeter.protocol.java.sampler.JavaSamplerContext;
 import org.apache.jmeter.samplers.SampleResult;
@@ -20,29 +21,35 @@ import org.slf4j.Logger;
 
 public abstract class AbstractCustomHttpSampler<T extends SampleResult> extends AbstractJavaSamplerClient {
 
+	protected static final String REQUEST_URI_KEY = "requestUri";
+	
+	protected static final String REQUEST_BODY_KEY = "requestBody";
+
 	@Override
-	public final T runTest(JavaSamplerContext context) {
-		T result = sampleResult();
-		result.sampleStart();
-		
-		runTest(context, result);
-		
-		result.sampleEnd();
-		return result;
+	public Arguments getDefaultParameters() {
+		Arguments defaultPArguments = new Arguments();
+		defaultPArguments.addArgument(REQUEST_URI_KEY, "http://localhost:3000/rest/test/hello");
+		defaultPArguments.addArgument(REQUEST_BODY_KEY, "{}");
+		return defaultPArguments;
 	}
 	
-	protected void runTest(JavaSamplerContext context, T result) {
+	@Override
+	public T runTest(JavaSamplerContext context) {
+		T result = sampleResult();
 		URI uri = popuateUrlFromContext(context, result);
 		try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
 			HttpPost request = new HttpPost(uri);
 			request.setEntity(createRequestEntityFromContext(context));
+			result.sampleStart();
 			try (CloseableHttpResponse response = httpClient.execute(request)) {
+				result.sampleEnd();
 				populateResultFromResponse(context, result, response);
 			}
 		} catch (IOException e) {
-			logger().error("Exection encountered while sending request: {}", e.getClass().getSimpleName());
+			logger().error("Exception encountered while sending request: {}", e.getClass().getSimpleName());
 			result.setSuccessful(false);
 		}
+		return result;
 	}
 	
 	protected abstract HttpEntity createRequestEntityFromContext(JavaSamplerContext context);
@@ -92,7 +99,7 @@ public abstract class AbstractCustomHttpSampler<T extends SampleResult> extends 
 			String responseBody = IOUtils.toString(content, "UTF-8");
 			populateResultFromResponseBody(context, result, responseBody);
 		} catch (Exception e) {
-			logger().warn("Could not parse body from response.");
+			logger().warn("Could not parse body from response");
 		}
 	}
 	
