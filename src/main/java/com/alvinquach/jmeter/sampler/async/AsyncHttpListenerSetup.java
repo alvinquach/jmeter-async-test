@@ -31,11 +31,11 @@ public final class AsyncHttpListenerSetup extends AbstractJavaSamplerClient {
 	
 	@Override
 	public Arguments getDefaultParameters() {
-		Arguments defaultPArguments = new Arguments();
-		defaultPArguments.addArgument(PORT_NUMBER_KEY, "8080");
-		defaultPArguments.addArgument(IDENTIFIER_PATH_KEY, StringUtils.EMPTY);
-		defaultPArguments.addArgument(TIMEOUT_DURATION_KEY, "5000");
-		return defaultPArguments;
+		Arguments defaultArguments = new Arguments();
+		defaultArguments.addArgument(PORT_NUMBER_KEY, "8080");
+		defaultArguments.addArgument(IDENTIFIER_PATH_KEY, StringUtils.EMPTY);
+		defaultArguments.addArgument(TIMEOUT_DURATION_KEY, "5000");
+		return defaultArguments;
 	}
 
 	@Override

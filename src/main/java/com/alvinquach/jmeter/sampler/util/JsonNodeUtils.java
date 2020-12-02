@@ -1,5 +1,6 @@
 package com.alvinquach.jmeter.sampler.util;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -7,8 +8,14 @@ public final class JsonNodeUtils {
 	
 	private static final String PATH_SEPARATOR = ".";
 	
+	public static final ObjectMapper MAPPER = new ObjectMapper();
+	
 	private JsonNodeUtils() {
 		
+	}
+	
+	public static ObjectMapper mapper() {
+		return MAPPER;
 	}
 	
 	public static String getNumberOrTextAsString(JsonNode jsonNode, String path) {
@@ -27,6 +34,10 @@ public final class JsonNodeUtils {
 			return getNumberOrTextAsString(currentPathNode, path.substring(separatorIndex));
 		}
 		return null;
+	}
+
+	public static JsonNode deserializeString(String jsonString) throws JsonProcessingException {
+		return MAPPER.readTree(jsonString);
 	}
 
 }

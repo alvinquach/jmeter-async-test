@@ -2,7 +2,10 @@ package com.alvinquach.jmeter.sampler;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.http.Header;
@@ -24,22 +27,42 @@ public abstract class AbstractCustomHttpSampler<T extends SampleResult> extends 
 	protected static final String REQUEST_URI_KEY = "requestUri";
 	
 	protected static final String REQUEST_BODY_KEY = "requestBody";
+	
+	protected URI requestUri;
+	
+	protected URL requestUrl;
 
 	@Override
 	public Arguments getDefaultParameters() {
-		Arguments defaultPArguments = new Arguments();
-		defaultPArguments.addArgument(REQUEST_URI_KEY, "http://localhost:3000/rest/test/hello");
-		defaultPArguments.addArgument(REQUEST_BODY_KEY, "{}");
-		return defaultPArguments;
+		Arguments defaultArguments = new Arguments();
+		defaultArguments.addArgument(REQUEST_URI_KEY, "http://localhost:3000/rest/test/hello");
+		defaultArguments.addArgument(REQUEST_BODY_KEY, "{}");
+		return defaultArguments;
+	}
+	
+	@Override
+	public void setupTest(JavaSamplerContext context) {
+		try {
+			requestUri = parseUrlFromContext(context);
+			requestUrl = requestUri.toURL();
+		} catch (URISyntaxException | MalformedURLException e) {
+			logger().error("Could not parse URI '{}'", requestUri);
+		}
+	}
+	
+	protected URI parseUrlFromContext(JavaSamplerContext context) throws URISyntaxException {
+		String requestUri = context.getParameter(REQUEST_URI_KEY);
+		return new URI(requestUri);
 	}
 	
 	@Override
 	public T runTest(JavaSamplerContext context) {
 		T result = sampleResult();
-		URI uri = popuateUrlFromContext(context, result);
+		result.setURL(requestUrl);
 		try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-			HttpPost request = new HttpPost(uri);
+			HttpPost request = new HttpPost(requestUri);
 			request.setEntity(createRequestEntityFromContext(context));
+			populateHeaders(request);
 			result.sampleStart();
 			try (CloseableHttpResponse response = httpClient.execute(request)) {
 				result.sampleEnd();
@@ -52,13 +75,9 @@ public abstract class AbstractCustomHttpSampler<T extends SampleResult> extends 
 		return result;
 	}
 	
-	protected abstract HttpEntity createRequestEntityFromContext(JavaSamplerContext context);
+	protected abstract void populateHeaders(HttpPost request);
 	
-	/**
-	 * Sets the request URL to be used for this sample into the result and returns
-	 * it as a URI.
-	 */
-	protected abstract URI popuateUrlFromContext(JavaSamplerContext context, T result);
+	protected abstract HttpEntity createRequestEntityFromContext(JavaSamplerContext context);
 	
 	protected void populateResultFromResponse(JavaSamplerContext context, T result, HttpResponse response) {
 		/*
