@@ -27,11 +27,14 @@ public final class AsyncHttpListenerSetup extends AbstractJavaSamplerClient {
 	
 	private static final String IDENTIFIER_PATH_KEY = "identifierPath";
 	
+	private static final String TIMEOUT_DURATION_KEY = "timeoutDuration";
+	
 	@Override
 	public Arguments getDefaultParameters() {
 		Arguments defaultPArguments = new Arguments();
 		defaultPArguments.addArgument(PORT_NUMBER_KEY, "8080");
 		defaultPArguments.addArgument(IDENTIFIER_PATH_KEY, StringUtils.EMPTY);
+		defaultPArguments.addArgument(TIMEOUT_DURATION_KEY, "5000");
 		return defaultPArguments;
 	}
 
@@ -45,10 +48,10 @@ public final class AsyncHttpListenerSetup extends AbstractJavaSamplerClient {
 		SampleResult result = new SampleResult();
 		result.sampleStart();
 
-		String portNumber = context.getParameter(PORT_NUMBER_KEY);
-		int port;
+		String portNumberValue = context.getParameter(PORT_NUMBER_KEY);
+		int portNumber;
 		try {
-			port = Integer.parseInt(portNumber);
+			portNumber = Integer.parseInt(portNumberValue);
 		} catch (NumberFormatException e) {
 			throw new IllegalArgumentException("Port number must be an integer");
 		}
@@ -57,8 +60,16 @@ public final class AsyncHttpListenerSetup extends AbstractJavaSamplerClient {
 		if (StringUtils.isEmpty(identifierPath)) {
 			throw new IllegalArgumentException("Identifier path is required");
 		}
+		
+		String timeoutDurationValue = context.getParameter(TIMEOUT_DURATION_KEY);
+		long timeoutDuration;
+		try {
+			timeoutDuration = StringUtils.isBlank(timeoutDurationValue) ? 0 : Long.parseLong(timeoutDurationValue);
+		} catch (NumberFormatException e) {
+			throw new IllegalArgumentException("Timeout duration must be an integer");
+		}
 
-		AsyncHttpListener httpListener = AsyncHttpListener.instantiate(port, identifierPath);
+		AsyncHttpListener httpListener = AsyncHttpListener.instantiate(portNumber, identifierPath, timeoutDuration);
 		try {
 			httpListener.start();
 			LOGGER.info("AsyncHttpListener started on port {}", portNumber);

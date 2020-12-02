@@ -1,6 +1,8 @@
 package com.alvinquach.jmeter.sampler.async;
 
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.jmeter.protocol.java.sampler.AbstractJavaSamplerClient;
@@ -45,6 +47,15 @@ public class AsyncHttpResponseSampler extends AbstractJavaSamplerClient {
 		AsyncRequestResult<String> result = new AsyncRequestResult<>();
 		result.sampleStart();
 		
+		runTest(context, result);
+		
+		if (result.getEndTime() == 0) {
+			result.sampleEnd();
+		}
+		return result;
+	}
+	
+	private void runTest(JavaSamplerContext context, AsyncRequestResult<String> result) {
 		/*
 		 * Retrieve the result of the previous sampler stage from the context.
 		 */
@@ -56,18 +67,9 @@ public class AsyncHttpResponseSampler extends AbstractJavaSamplerClient {
 		 * of type AsyncRequestResult.
 		 */
 		if (!(_previousResult instanceof AsyncRequestResult<?>)) {
-			return null;
+			return;
 		}
 		AsyncRequestResult<?> previousResult = (AsyncRequestResult<?>) _previousResult;
-		
-		/*
-		 * If previous sampler stage reported a failure, then don't bother listening for
-		 * a response.
-		 */
-		if (!previousResult.isSuccessful()) {
-			LOGGER.error("Previous result reported a failure");
-			return null;
-		}
 		
 		/*
 		 * Retrieve the identifier string from the previous result. This is required to
@@ -78,7 +80,16 @@ public class AsyncHttpResponseSampler extends AbstractJavaSamplerClient {
 		String identifier = getIdentifierFromPreviousResult(previousResult);
 		if (StringUtils.isBlank(identifier)) {
 			LOGGER.error("Identifier from previous result could not be parsed or is invalid");
-			return null;
+			return;
+		}
+		
+		/*
+		 * If previous sampler stage reported a failure, then don't bother listening for
+		 * a response.
+		 */
+		if (!previousResult.isSuccessful()) {
+			LOGGER.error("Previous result reported a failure");
+			return;
 		}
 		
 		LOGGER.info("Waiting for response with identifier '{}'", identifier);
@@ -88,16 +99,15 @@ public class AsyncHttpResponseSampler extends AbstractJavaSamplerClient {
 		try {
 			response = future.get();
 			result.sampleEnd();
+			LOGGER.info("Received async response with identifier '{}'", identifier);
+			populateResult(result, previousResult, response);
+		} catch (CancellationException | ExecutionException e) {
+			LOGGER.error("Response timed out for identifier '{}'", identifier);
 		} catch (Exception e) {
-			LOGGER.error("Exception encountered while awaiting response with identifier '{}': {}", identifier, e.getClass().getSimpleName());
-			return null;
+			LOGGER.error("Exception encountered while awaiting response with identifier '{}': {}", e.getClass().getSimpleName());
 		}
 		
-		LOGGER.info("Received async response with identifier '{}'", identifier);
 		httpListener.notifyComplete(identifier);
-		
-		populateResult(result, previousResult, response);
-		return result;
 	}
 	
 	private String getIdentifierFromPreviousResult(AsyncRequestResult<?> previousResult) {
@@ -115,6 +125,15 @@ public class AsyncHttpResponseSampler extends AbstractJavaSamplerClient {
 		result.setResponseData(response, "UTF-8");
 		result.setResponseCodeOK();
 		result.setSuccessful(true);
+	}
+	
+	@Override
+	public void teardownTest(JavaSamplerContext context) {
+		/*
+		 * Must dereference the HTTP listener here since a new instance will be created
+		 * when the test is run again.
+		 */
+		httpListener = null;
 	}
 	
 }

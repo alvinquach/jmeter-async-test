@@ -1,8 +1,12 @@
 package com.alvinquach.jmeter.sampler.async;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -23,9 +27,26 @@ import fi.iki.elonen.NanoHTTPD.Response.Status;
  */
 public class AsyncHttpListener extends NanoHTTPD {
 	
+	private static class ResponseWrapper {
+		
+		final CompletableFuture<String> future = new CompletableFuture<>();
+		
+		final long expirationTime;
+		
+		ResponseWrapper(long timeoutDuration) {
+			if (timeoutDuration == 0) {
+				expirationTime = Long.MAX_VALUE;
+			} else {
+				expirationTime = new Date().getTime() + timeoutDuration;
+			}
+		}
+	}
+	
 	private static final Logger LOGGER = LoggerFactory.getLogger(AsyncHttpListener.class);
 	
 	private static final ObjectMapper MAPPER = new ObjectMapper();
+	
+	private static final long EXPIRED_RESPONSE_CHECK_INTERVAL = 100;
 	
 	private static final String MIME_JSON = "application/json";
 	
@@ -60,16 +81,7 @@ public class AsyncHttpListener extends NanoHTTPD {
 		RESPONSE_415 = newFixedLengthResponse(status, MIME_PLAINTEXT, message);
 	}
 
-	private final ConcurrentHashMap<String, CompletableFuture<String>> responses = new ConcurrentHashMap<>();
-	
-	private final String identifierPath;
-	
 	private static AsyncHttpListener instance;
-	
-	private AsyncHttpListener(int port, String identifierPath) {
-		super(port);
-		this.identifierPath = identifierPath;
-	}
 	
 	/**
 	 * Returns the AsyncHttpListener singleton instance.
@@ -84,12 +96,12 @@ public class AsyncHttpListener extends NanoHTTPD {
 	/**
 	 * Instantiates the AsyncHttpListener singleton instance.
 	 */
-	public static AsyncHttpListener instantiate(int port, String identifierPath) {
+	public static AsyncHttpListener instantiate(int port, String identifierPath, long timeoutDuration) {
 		synchronized (AsyncHttpListener.class) {
 			if (instance != null) {
 				throw new IllegalStateException("AsyncHttpListener instance is already initialized");
 			}
-			return instance = new AsyncHttpListener(port, identifierPath);
+			return instance = new AsyncHttpListener(port, identifierPath, timeoutDuration);
 		}
 	}
 
@@ -103,7 +115,27 @@ public class AsyncHttpListener extends NanoHTTPD {
 			}
 			AsyncHttpListener oldInstance = instance;
 			instance = null;
+			
+			oldInstance.scheduler.shutdown();
 			return oldInstance;
+		}
+	}
+
+	private final ConcurrentHashMap<String, ResponseWrapper> responses = new ConcurrentHashMap<>();
+	
+	private final String identifierPath;
+	
+	private final long timeoutDuration;
+	
+	private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+	
+	private AsyncHttpListener(int port, String identifierPath, long timeoutDuration) {
+		super(port);
+		this.identifierPath = identifierPath;
+		
+		this.timeoutDuration = timeoutDuration;
+		if (timeoutDuration > 0) {
+			scheduler.scheduleAtFixedRate(this::timeoutReponses, timeoutDuration, EXPIRED_RESPONSE_CHECK_INTERVAL, TimeUnit.MILLISECONDS);
 		}
 	}
 	
@@ -117,22 +149,18 @@ public class AsyncHttpListener extends NanoHTTPD {
 			// TODO Throw exception instead
 			return null;
 		}
-		return addOrRetrieveResponse(identifier);
+		return addOrRetrieveResponse(identifier).future;
 	}
 
 	public void notifyComplete(String identifier) {
-		CompletableFuture<String> removed = responses.remove(identifier);
-		if (removed != null && removed.isDone()) {
-			removed.cancel(true);
+		ResponseWrapper removed = responses.remove(identifier);
+		if (removed != null && removed.future.isDone()) {
+			removed.future.cancel(true);
 		}
 	}
 
-	private CompletableFuture<String> addOrRetrieveResponse(String identifier) {
+	private ResponseWrapper addOrRetrieveResponse(String identifier) {
 		return responses.computeIfAbsent(identifier, this::mappingFunction);
-	}
-
-	private CompletableFuture<String> mappingFunction(String identifier) {
-		return new CompletableFuture<>();
 	}
 
 	@Override
@@ -190,8 +218,8 @@ public class AsyncHttpListener extends NanoHTTPD {
 		 * Retrieve (or add) the CompletableFuture object from the results map that is
 		 * associated with the identifier key, and mark it as complete.
 		 */
-	    CompletableFuture<String> future = addOrRetrieveResponse(identifier);
-	    future.complete(body);
+	    ResponseWrapper response = addOrRetrieveResponse(identifier);
+	    response.future.complete(body);
 	    
 	    return RESPONSE_200;
     }
@@ -219,6 +247,28 @@ public class AsyncHttpListener extends NanoHTTPD {
 		} catch (JsonProcessingException e) {
 			LOGGER.error("Exception encountered while deserializing the response body: {}", e.getClass().getSimpleName());
 			return null;
+		}
+	}
+	
+	private ResponseWrapper mappingFunction(String identifier) {
+		return new ResponseWrapper(timeoutDuration);
+	}
+	
+	/**
+	 * Goes through the responses that have not been completed yet and cancels the
+	 * ones that are expired.
+	 */
+	private void timeoutReponses() {
+		int count = 0;
+		long now = new Date().getTime();
+		for (ResponseWrapper response : responses.values()) {
+			if (!response.future.isDone() && now > response.expirationTime) {
+				response.future.cancel(true);
+				count++;
+			}
+		}
+		if (count > 0) {
+			LOGGER.info("Cancelled {} awaiting responses due to exceeding timeout limit.", count);
 		}
 	}
 	
