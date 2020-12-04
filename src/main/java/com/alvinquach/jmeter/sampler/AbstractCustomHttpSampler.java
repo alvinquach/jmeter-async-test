@@ -22,7 +22,7 @@ import org.apache.jmeter.protocol.java.sampler.JavaSamplerContext;
 import org.apache.jmeter.samplers.SampleResult;
 import org.slf4j.Logger;
 
-public abstract class AbstractCustomHttpSampler<T extends SampleResult> extends AbstractJavaSamplerClient {
+public abstract class AbstractCustomHttpSampler extends AbstractJavaSamplerClient {
 
 	protected static final String REQUEST_URI_KEY = "requestUri";
 	
@@ -56,8 +56,8 @@ public abstract class AbstractCustomHttpSampler<T extends SampleResult> extends 
 	}
 	
 	@Override
-	public T runTest(JavaSamplerContext context) {
-		T result = sampleResult();
+	public SampleResult runTest(JavaSamplerContext context) {
+		SampleResult result = new SampleResult();
 		result.setURL(requestUrl);
 		try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
 			HttpPost request = new HttpPost(requestUri);
@@ -72,6 +72,7 @@ public abstract class AbstractCustomHttpSampler<T extends SampleResult> extends 
 			logger().error("Exception encountered while sending request: {}", e.getClass().getSimpleName());
 			result.setSuccessful(false);
 		}
+		populateResultFromContext(context, result);
 		return result;
 	}
 	
@@ -79,7 +80,7 @@ public abstract class AbstractCustomHttpSampler<T extends SampleResult> extends 
 	
 	protected abstract HttpEntity createRequestEntityFromContext(JavaSamplerContext context);
 	
-	protected void populateResultFromResponse(JavaSamplerContext context, T result, HttpResponse response) {
+	protected void populateResultFromResponse(JavaSamplerContext context, SampleResult result, HttpResponse response) {
 		/*
 		 * Response status
 		 */
@@ -91,7 +92,7 @@ public abstract class AbstractCustomHttpSampler<T extends SampleResult> extends 
 		populateResultFromResponseEntity(context, result, response.getEntity());
 	}
 	
-	protected void populateResultFromStatusLine(JavaSamplerContext context, T result, StatusLine statusLine) {
+	protected void populateResultFromStatusLine(JavaSamplerContext context, SampleResult result, StatusLine statusLine) {
 		int statusCode = statusLine.getStatusCode();
 		// TODO Allow user to specify expected status code, and set successful flag based on whether the code matches.
 		if (statusCode == 200) {
@@ -104,7 +105,7 @@ public abstract class AbstractCustomHttpSampler<T extends SampleResult> extends 
 		result.setResponseMessage(statusLine.getReasonPhrase());
 	}
 	
-	protected void populateResultFromResponseEntity(JavaSamplerContext context, T result, HttpEntity responseEntity) {
+	protected void populateResultFromResponseEntity(JavaSamplerContext context, SampleResult result, HttpEntity responseEntity) {
 		if (responseEntity == null) {
 			return;
 		}
@@ -122,14 +123,13 @@ public abstract class AbstractCustomHttpSampler<T extends SampleResult> extends 
 		}
 	}
 	
-	protected void populateResultFromResponseBody(JavaSamplerContext context, T result, String responseBody) {
+	protected void populateResultFromResponseBody(JavaSamplerContext context, SampleResult result, String responseBody) {
 		result.setResponseData(responseBody, "UTF-8");
 	}
-
-	/**
-	 * Creates a container for the sample result.
-	 */
-	protected abstract T sampleResult();
+	
+	protected void populateResultFromContext(JavaSamplerContext context, SampleResult result) {
+		// Do nothing by default, subclasses can override this.
+	}
 	
 	/**
 	 * Get the logger for this class.

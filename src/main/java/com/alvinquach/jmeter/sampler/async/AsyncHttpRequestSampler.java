@@ -7,6 +7,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.jmeter.config.Arguments;
 import org.apache.jmeter.protocol.java.sampler.JavaSamplerContext;
+import org.apache.jmeter.samplers.SampleResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,7 +21,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  * <p>
  * This differs from a standard HTTP Request sampler in that it will parse an
  * identifier value from the initial response and passes it in the returned
- * AsyncSampleResult object so that the AsyncHttpResponseSampler can use it to
+ * SampleResult object so that the AsyncHttpResponseSampler can use it to
  * track the asynchronous response.This requires a unique identifier to be
  * present in both the initial and asynchronous responses.
  * <p>
@@ -29,9 +30,11 @@ import com.fasterxml.jackson.databind.JsonNode;
  *
  * @author Alvin Quach
  */
-public class AsyncHttpRequestSampler extends AbstractAsyncHttpRequestSampler<AsyncSampleResult> {
+public class AsyncHttpRequestSampler extends AbstractAsyncHttpRequestSampler {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(AsyncHttpRequestSampler.class);
+	
+	private static final String IDENTIFIER_KEY = "identifier";
 	
 	private static final String IDENTIFIER_PATH_KEY = "identifierPath";
 	
@@ -66,7 +69,7 @@ public class AsyncHttpRequestSampler extends AbstractAsyncHttpRequestSampler<Asy
 	}
 	
 	@Override
-	protected void populateResultFromResponseBody(JavaSamplerContext context, AsyncSampleResult result, String responseBody) {
+	protected void populateResultFromResponseBody(JavaSamplerContext context, SampleResult result, String responseBody) {
 		super.populateResultFromResponseBody(context, result, responseBody);
 		/*
 		 * Get a unique identifier for the result. This will be used by the response
@@ -77,8 +80,8 @@ public class AsyncHttpRequestSampler extends AbstractAsyncHttpRequestSampler<Asy
 			result.setSuccessful(false);
 			return;
 		}
+		context.getJMeterVariables().put(IDENTIFIER_KEY, identifier);
 		LOGGER.info("Receieved initial response with identifier '{}'", identifier);
-		result.setIdentifier(identifier);
 	}
 	
 	protected String parseIdentifierFromResponseBody(JavaSamplerContext context, String responseBody) {
@@ -94,11 +97,6 @@ public class AsyncHttpRequestSampler extends AbstractAsyncHttpRequestSampler<Asy
 	    	LOGGER.error("Response body does not contain a valid identifier value at the specified path '{}'", identifierPath);
 		}
 		return identifier;
-	}
-	
-	@Override
-	protected AsyncSampleResult sampleResult() {
-		return new AsyncSampleResult();
 	}
 
 	@Override

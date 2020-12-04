@@ -18,10 +18,12 @@ import org.slf4j.LoggerFactory;
  *
  * @author Alvin Quach
  */
-public class AsyncHttpResponseSampler extends AbstractAsyncHttpResponseSampler<AsyncSampleResult> {
+public class AsyncHttpResponseSampler extends AbstractAsyncHttpResponseSampler {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(AsyncHttpResponseSampler.class);
 
+	private static final String IDENTIFIER_KEY = "identifier";
+	
 	private static AsyncHttpListener httpListener;
 	
 	@Override
@@ -47,8 +49,8 @@ public class AsyncHttpResponseSampler extends AbstractAsyncHttpResponseSampler<A
 	}
 
 	@Override
-	protected AsyncSampleResult sampleResult() {
-		return new AsyncSampleResult();
+	protected String identifierKey() {
+		return IDENTIFIER_KEY;
 	}
 	
 	@Override

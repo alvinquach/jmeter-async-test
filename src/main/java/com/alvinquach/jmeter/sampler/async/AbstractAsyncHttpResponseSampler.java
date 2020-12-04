@@ -19,14 +19,14 @@ import org.slf4j.Logger;
  *
  * @author Alvin Quach
  */
-public abstract class AbstractAsyncHttpResponseSampler<T extends AbstractAsyncSampleResult> extends AbstractJavaSamplerClient {
+public abstract class AbstractAsyncHttpResponseSampler extends AbstractJavaSamplerClient {
 
 	@Override
-	public T runTest(JavaSamplerContext context) {
+	public SampleResult runTest(JavaSamplerContext context) {
 		/*
 		 * Instantiate the sample result and record its start time.
 		 */
-		T result = sampleResult();
+		SampleResult result = new SampleResult();
 		result.sampleStart();
 		
 		runTest(context, result);
@@ -37,21 +37,11 @@ public abstract class AbstractAsyncHttpResponseSampler<T extends AbstractAsyncSa
 		return result;
 	}
 	
-	private void runTest(JavaSamplerContext context, T result) {
+	private void runTest(JavaSamplerContext context, SampleResult result) {
 		/*
 		 * Retrieve the result of the previous sampler stage from the context.
 		 */
-		SampleResult _previousResult = context.getJMeterContext().getPreviousResult();
-		
-		/*
-		 * Since the AbstractAsyncHttpResponseSampler is intended to be placed right
-		 * after a AbstractAsyncHttpRequestSampler in the sampler chain, the previous
-		 * result should be a subclass AbstractAsyncSampleResult.
-		 */
-		if (!(_previousResult instanceof AbstractAsyncSampleResult)) {
-			return;
-		}
-		AbstractAsyncSampleResult previousResult = (AbstractAsyncSampleResult) _previousResult;
+		SampleResult previousResult = context.getJMeterContext().getPreviousResult();
 		
 		/*
 		 * Retrieve the identifier string from the previous result. This is required to
@@ -59,7 +49,8 @@ public abstract class AbstractAsyncHttpResponseSampler<T extends AbstractAsyncSa
 		 * stage. If a valid identifier could not be retrieved, then don't bother
 		 * listening for a response.
 		 */
-		String identifier = getIdentifierFromPreviousResult(previousResult);
+		String identifierKey = identifierKey();
+		String identifier = context.getJMeterVariables().get(identifierKey);
 		if (StringUtils.isBlank(identifier)) {
 			logger().error("Identifier from previous result could not be parsed or is invalid");
 			return;
@@ -92,16 +83,7 @@ public abstract class AbstractAsyncHttpResponseSampler<T extends AbstractAsyncSa
 		httpListener().notifyComplete(identifier);
 	}
 	
-	private String getIdentifierFromPreviousResult(AbstractAsyncSampleResult previousResult) {
-		Object identifier = previousResult.getIdentifier();
-		if (identifier != null) {
-			return identifier.toString();
-		}
-		return null;
-	}
-	
-	protected void populateResult(T result, AbstractAsyncSampleResult previousResult, String response) {
-		result.setOriginalRequestStartTime(previousResult.getOriginalRequestStartTime());
+	protected void populateResult(SampleResult result, SampleResult previousResult, String response) {
 		result.setBodySize((long) response.length());
 		result.setContentType("application/json");
 		result.setResponseData(response, "UTF-8");
@@ -110,14 +92,14 @@ public abstract class AbstractAsyncHttpResponseSampler<T extends AbstractAsyncSa
 	}
 	
 	/**
-	 * Creates a container for the sample result.
-	 */
-	protected abstract T sampleResult();
-	
-	/**
 	 * Get the HTTP listener.
 	 */
 	protected abstract AbstractAsyncHttpListener httpListener();
+
+	/**
+	 * Get the key for retrieving the identifier variable from the context.
+	 */
+	protected abstract String identifierKey();
 	
 	/**
 	 * Get the logger for this class.
